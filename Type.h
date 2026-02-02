@@ -18,6 +18,7 @@ struct piece {
     int isBriefing;
     int briefingRound;
     int isCapturedPlayer;
+    int effectStartRound;  // Track when energy/sickness effects started
 };
 
 struct player {

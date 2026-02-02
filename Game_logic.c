@@ -25,6 +25,7 @@ void initializePieces() {
         pieces[i]->isBriefing = 0;
         pieces[i]->briefingRound=0;
         pieces[i]->isCapturedPlayer=0;
+        pieces[i]->effectStartRound=0;
 
         if (i < 4) {
             strcpy(pieces[i]->color, "Yellow");
@@ -91,9 +92,9 @@ int whoStartGame() {
            pieces[((startPlayer + 3) % 4) * 4]->color);
     return startPlayer;
 }
-//generate mystryCells in the random location
+//generate mystryCells in the random location every 4 rounds starting from round 3
 void mystryCellGenerator(){
-    if(Round%4==3){
+    if(Round==2 || (Round>2 && (Round-2)%4==0)){
         mystryCell=rand()%52;
         printf("\n");
         printf("A mystery cell has spawned in location L%d and will be at this location for the next four rounds\n",mystryCell);
@@ -168,7 +169,7 @@ int ableToMove(int currentPlayer){
         }
     }
     if(count>=2){
-        return index[rand()%(count-1)];
+        return index[rand()%count];
     }
     else if(count==1){
         return index[0];
@@ -210,6 +211,7 @@ void movePiece(int currentPlayer, int rolledNumber, int pieceIndex) {
     if(piece->Direction == 'H'){
         for(int i=rolledNumber;i>0;i--){
             piece->position+=1;
+            // Must have captured at least one opponent to enter home straight (LUDO-CS rule)
             if(piece->approachCellCount>=1 && piece->isCapturedPlayer==1){
                 piece->position=-2;
                 piece->isHomeStraight=1;
@@ -227,6 +229,7 @@ void movePiece(int currentPlayer, int rolledNumber, int pieceIndex) {
     else{
         for(int i=rolledNumber;i>0;i--){
             piece->position-=1;
+            // Counter-clockwise: must pass approach cell twice before entering home straight (LUDO-CS rule)
             if(piece->approachCellCount>=2 && piece->isCapturedPlayer==1){
                     piece->position=-2;
                     piece->isHomeStraight=1;
@@ -249,8 +252,8 @@ void movePiece(int currentPlayer, int rolledNumber, int pieceIndex) {
 int ableToMoveInHomeStraight(int currentPlayer,int rolledNumber){
     int i;
     for(i=0;i<4;i++){
-        rolledNumber=teleportingPower(currentPlayer,i,rolledNumber);
-        if(pieces[currentPlayer*4+i]->isHomeStraight==1 && pieces[currentPlayer*4+i]->homeStraight+rolledNumber <=6){
+        int adjustedRoll=teleportingPower(currentPlayer,i,rolledNumber);
+        if(pieces[currentPlayer*4+i]->isHomeStraight==1 && pieces[currentPlayer*4+i]->homeStraight+adjustedRoll <=6){
             return i;
         }
     }
@@ -258,8 +261,9 @@ int ableToMoveInHomeStraight(int currentPlayer,int rolledNumber){
 }
 //move piece in home path
 void MoveInHomeStraight(int currentPlayer,int rolledNumber,int pieceIndex){
-    if(pieces[currentPlayer*4+pieceIndex]->homeStraight+rolledNumber<=6){
-        pieces[currentPlayer*4+pieceIndex]->homeStraight+=rolledNumber;
+    int adjustedRoll=teleportingPower(currentPlayer,pieceIndex,rolledNumber);
+    if(pieces[currentPlayer*4+pieceIndex]->homeStraight+adjustedRoll<=6){
+        pieces[currentPlayer*4+pieceIndex]->homeStraight+=adjustedRoll;
         printf("Moving in homestraight\n");
         if(pieces[currentPlayer*4+pieceIndex]->homeStraight==6){
             printf("%c%d Reached Home\n",Turn[currentPlayer],pieceIndex+1);
@@ -357,13 +361,20 @@ void capturePlayer(int rolledNumber, int currentPlayer,int pieceIndex) {
         }
     }
 }
-//handle the briefing state of a piece 
+//handle the briefing state and special effects of a piece 
 void handleBriefingRound(int currentPlayer){
     for(int i=0;i<4;i++){
         if(pieces[currentPlayer*4+i]->isBriefing==1){
             pieces[currentPlayer*4+i]->briefingRound--;
             if(pieces[currentPlayer*4+i]->briefingRound==0){
                 pieces[currentPlayer*4+i]->isBriefing=0;
+            }
+        }
+        // Reset energized/sick effects after 4 rounds (LUDO-CS rule)
+        if(pieces[currentPlayer*4+i]->isEnergized || pieces[currentPlayer*4+i]->isSick){
+            if(Round - pieces[currentPlayer*4+i]->effectStartRound >= 4){
+                pieces[currentPlayer*4+i]->isEnergized=0;
+                pieces[currentPlayer*4+i]->isSick=0;
             }
         }
     }
@@ -376,6 +387,7 @@ void handleMysteryCell(int currentPlayer, int pieceIndex) {
             pieces[currentPlayer * 4 + pieceIndex]->position = Bhawana;
             pieces[currentPlayer * 4 + pieceIndex]->isEnergized = rand() % 2; // 50% chance of being energized
             pieces[currentPlayer * 4 + pieceIndex]->isSick = !pieces[currentPlayer * 4 + pieceIndex]->isEnergized;
+            pieces[currentPlayer * 4 + pieceIndex]->effectStartRound = Round;  // Track when effect started
             printf("%s's piece %c%d is teleported to Bhawana\n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
             break;
         case 2:
@@ -388,11 +400,10 @@ void handleMysteryCell(int currentPlayer, int pieceIndex) {
             pieces[currentPlayer * 4 + pieceIndex]->position = Pita_Kotuwa;
             if (pieces[currentPlayer * 4 + pieceIndex]->Direction == 'H') {
                 pieces[currentPlayer * 4 + pieceIndex]->Direction = 'T';
-                printf("%s's piece %c%d is teleported to Pita-Kotuwa\n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
+                printf("%s's piece %c%d is teleported to Pita-Kotuwa and direction changed\n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
             } else {
                 pieces[currentPlayer * 4 + pieceIndex]->position = Kotuwa;
-                printf("%s's piece %c%d is teleported to Pita-Kotuwa \n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
-                printf("%s's piece %c%d is teleported to Kotuwa\n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
+                printf("%s's piece %c%d is teleported to Kotuwa (from Pita-Kotuwa)\n", pieces[currentPlayer * 4]->color, Turn[currentPlayer], (pieceIndex + 1));
             }
             break;
         case 4:
@@ -412,29 +423,15 @@ void handleMysteryCell(int currentPlayer, int pieceIndex) {
 }
 //applies the effect of the mystryCell
 int teleportingPower(int currentPlayer,int pieceIndex,int rolledNumber){
-    int powerRound=Round+4;
-    while(Round<=powerRound){
-        if(pieces[currentPlayer*4+pieceIndex]->isEnergized){
-            while(powerRound>Round){
-                return rolledNumber*2;
-                if(Round==powerRound){
-                    pieces[currentPlayer*4+pieceIndex]->isEnergized=0;
-                }
-            }
-        }
-        else if(pieces[currentPlayer*4+pieceIndex]->isSick){
-            while(powerRound>Round){
-                return rolledNumber/2;
-                if(Round==powerRound){
-                    pieces[currentPlayer*4+pieceIndex]->isSick=0;
-                }
-            }
-        }
-        else{
-            return rolledNumber;
-        }
+    if(pieces[currentPlayer*4+pieceIndex]->isEnergized){
+        return rolledNumber*2;
     }
-    return rolledNumber;
+    else if(pieces[currentPlayer*4+pieceIndex]->isSick){
+        return rolledNumber/2;
+    }
+    else{
+        return rolledNumber;
+    }
 }
 void redPlayer(int rolledNumber){
     int pieceIndex;
@@ -576,20 +573,27 @@ void yellowPlayer(int rolledNumber){
 int ableToMoveToMystryCell(int currentPlayer,int rolledNumber){
     int position;
     for(int i=0;i<4;i++){
+        if(pieces[currentPlayer*4+i]->position==-1 || pieces[currentPlayer*4+i]->isHomeStraight==1) continue;
+        
         position=pieces[currentPlayer*4+i]->position;
         if(pieces[currentPlayer*4+i]->Direction=='H'){
-            for(int j=rolledNumber;j>0;j++){
-                position ++;
+            for(int j=rolledNumber;j>0;j--){
+                position++;
                 if(position>51){
                     position-=52;
                 }
             }
         }
+        else{
+            for(int j=rolledNumber;j>0;j--){
+                position--;
+                if(position<0){
+                    position+=52;
+                }
+            }
+        }
         if(position==mystryCell){
             return i;
-        }
-        else{
-            return -1;
         }
     }
     return -1;
