@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LUDO Web UI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>LUDO</h1>
+      <div id="subtitle" class="subtitle">Connecting...</div>
+    </div>
+    <div class="right">
+      <label class="small">Server</label>
+      <input id="api" class="api" value="http://localhost:8080" />
+      <button id="reconnect" class="btn">Reconnect</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="boardCard">
+      <canvas id="board" width="640" height="640"></canvas>
+      <div class="hint">Auto-play mode. Use STEP for a single tick, or PAUSE/RESUME.</div>
+    </section>
+
+    <aside class="panel">
+      <section class="card">
+        <h2>Controls</h2>
+        <div class="row">
+          <button class="btn primary" id="roll">STEP</button>
+          <button class="btn" id="pause">PAUSE</button>
+          <button class="btn" id="resume">RESUME</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Game State</h2>
+        <div id="state" class="mono small"></div>
+      </section>
+
+      <section class="card">
+        <h2>Recent Actions</h2>
+        <pre id="log" class="log">(no log yet)</pre>
+      </section>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
