@@ -1,15 +1,8 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include "Game_logic.h"
+#include "server.h"
 
 int main() {
-    srand(time(NULL));
-    playerDetails();
-    initializePieces();
-    initializePlayers();
-    Play();
+    start_server(8080);
     return 0;
 }
 

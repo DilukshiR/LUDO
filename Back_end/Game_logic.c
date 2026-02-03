@@ -96,6 +96,7 @@ int whoStartGame() {
 void mystryCellGenerator(){
     if(Round==2 || (Round>2 && (Round-2)%4==0)){
         mystryCell=rand()%52;
+        mysterySpawnRound=Round;
         printf("\n");
         printf("A mystery cell has spawned in location L%d and will be at this location for the next four rounds\n",mystryCell);
     }
@@ -281,6 +282,7 @@ void findWinner(int currentPlayer){
     }
     if(homeCount==4){
         players[currentPlayer]->playStatus=0;
+        winner=currentPlayer;
         printf("%s player Wins!!\n",pieces[currentPlayer*4]->color);
     }
 }
