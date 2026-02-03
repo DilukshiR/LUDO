@@ -605,7 +605,7 @@ void bluePlayer(int rolledNumber){
     if(rolledNumber==6){
         pieceIndex=ableToMoveToMystryCell(1,rolledNumber);
         if(pieceIndex>=0 && Round>2){
-            for(int j=rolledNumber;j>0;j++){
+            for(int j=rolledNumber;j>0;j--){
                 pieces[4+pieceIndex]->position++;
                 if( pieces[4+pieceIndex]->position>51){
                     pieces[4+pieceIndex]->position-=52;

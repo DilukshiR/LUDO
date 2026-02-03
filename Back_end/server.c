@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include "server.h"
 #include "Type.h"
 #include "Game_logic.h"
@@ -19,8 +21,6 @@ typedef struct {
     int lastDice;
     int paused;
     int startPlayer;
-    int pendingRoll;
-    int pendingActive;
     char logBuf[LOG_MAX][LOG_LEN];
     int logCount;
     int logStart;
@@ -101,8 +101,6 @@ static void game_init(){
 
     server.lastDice = 0;
     server.paused = 0;
-    server.pendingActive = 0;
-    server.pendingRoll = 0;
     server.logCount = 0;
     server.logStart = 0;
 
@@ -114,61 +112,45 @@ static void game_init(){
             server.startPlayer = i;
         }
     }
-    
+
     currentplayer = server.startPlayer;
     log_add("Game init. Player %d starts.", currentplayer + 1);
 }
 
-static void handle_roll(){
-    if (server.pendingActive){
-        log_add("Waiting for MOVE");
-        return;
-    }
-    if (winner != -1){
-        log_add("Game over");
-        return;
-    }
-    server.pendingRoll = rollDice();
-    server.lastDice = server.pendingRoll;
-    log_add("P%d rolled %d", currentplayer + 1, server.pendingRoll);
+static void auto_step(){
+    if (server.paused || winner != -1) return;
 
-    if (!any_move_available(currentplayer, server.pendingRoll)){
-        log_add("No moves. Pass.");
-        end_turn(server.pendingRoll);
-        server.pendingActive = 0;
-        return;
-    }
-    server.pendingActive = 1;
-}
+    int rolled = rollDice();
+    server.lastDice = rolled;
+    log_add("P%d rolled %d", currentplayer + 1, rolled);
 
-static void handle_move(int pieceIndex){
-    if (!server.pendingActive){
-        log_add("No pending roll");
-        return;
-    }
-    if (pieceIndex < 0 || pieceIndex > 3){
-        log_add("Bad piece %d", pieceIndex);
-        return;
-    }
-    if (!can_move_piece(currentplayer, server.pendingRoll, pieceIndex)){
-        log_add("Cant move %d", pieceIndex);
-        return;
-    }
-
-    struct piece *pc = pieces[currentplayer * 4 + pieceIndex];
-    if (pc->position == -1 && server.pendingRoll == 6){
-        startPiece(currentplayer, pieceIndex);
-    } else if (pc->isHomeStraight){
-        MoveInHomeStraight(currentplayer, server.pendingRoll, pieceIndex);
-    } else {
-        movePiece(currentplayer, server.pendingRoll, pieceIndex);
+    switch (currentplayer){
+        case 0: yellowPlayer(rolled); break;
+        case 1: bluePlayer(rolled); break;
+        case 2: redPlayer(rolled); break;
+        case 3: greenPlayer(rolled); break;
     }
 
     handleBriefingRound(currentplayer);
-    end_turn(server.pendingRoll);
-    server.pendingActive = 0;
-    server.pendingRoll = 0;
-    log_add("P%d moved %d", currentplayer + 1, pieceIndex + 1);
+    end_turn(rolled);
+}
+
+static void handle_pause(){
+    if (server.paused){
+        log_add("Already paused");
+        return;
+    }
+    server.paused = 1;
+    log_add("Paused");
+}
+
+static void handle_resume(){
+    if (!server.paused){
+        log_add("Already running");
+        return;
+    }
+    server.paused = 0;
+    log_add("Resumed");
 }
 
 static void write_state_json(char *out, size_t max){
@@ -177,7 +159,8 @@ static void write_state_json(char *out, size_t max){
 
     size_t used = 0;
     used += snprintf(out + used, max - used,
-        "{\"current_player\":%d,\"dice\":%d,\"round\":%d,\"paused\":%d,\"winner\":%d,\"mystery_cell\":%d,\"mystery_turns_left\":%d,\"pieces\":[",
+        "{\"current_player\":%d,\"dice\":%d,\"round\":%d,\"paused\":%d,\"winner\":%d,"
+        "\"mystery_cell\":%d,\"mystery_turns_left\":%d,\"pieces\":[",
         currentplayer, server.lastDice, Round, server.paused, winner, mcell, mleft);
 
     for (int p = 0; p < 4; p++){
@@ -195,7 +178,8 @@ static void write_state_json(char *out, size_t max){
     int count = server.logCount < 10 ? server.logCount : 10;
     for (int i = 0; i < count; i++){
         int idx = (server.logStart + server.logCount - count + i) % LOG_MAX;
-        used += snprintf(out + used, max - used, "\"%s\"%s", server.logBuf[idx], (i < count - 1) ? "," : "");
+        used += snprintf(out + used, max - used, "\"%s\"%s",
+            server.logBuf[idx], (i < count - 1) ? "," : "");
     }
     used += snprintf(out + used, max - used, "]}");
 }
@@ -237,28 +221,34 @@ static void handle_client(int client){
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/cmd") == 0){
         char *body = strstr(req, "\r\n\r\n");
         if (body) body += 4; else body = "";
-        
+
         char cmd[128];
         strncpy(cmd, body, sizeof(cmd) - 1);
         cmd[sizeof(cmd) - 1] = '\0';
-        
-        int len = strlen(cmd);
+
+        int len = (int)strlen(cmd);
         while (len > 0 && (cmd[len-1] == '\n' || cmd[len-1] == '\r' || cmd[len-1] == ' ')){
             cmd[--len] = '\0';
         }
 
-        if (strncmp(cmd, "ROLL", 4) == 0) handle_roll();
-        else if (strncmp(cmd, "MOVE", 4) == 0) {
-            int piece = -1;
-            sscanf(cmd + 4, "%d", &piece);
-            handle_move(piece);
+        if (strncmp(cmd, "PAUSE", 5) == 0) {
+            handle_pause();
+        } else if (strncmp(cmd, "RESUME", 6) == 0) {
+            handle_resume();
+        } else if (strncmp(cmd, "RESET", 5) == 0) {
+            game_init();
+            log_add("Game reset");
+        } else if (strncmp(cmd, "STEP", 4) == 0) {
+            auto_step();
+        } else {
+            log_add("Unknown cmd: %s", cmd);
         }
 
         send_response(client, "200 OK", "text/plain", "OK");
     } else {
         send_response(client, "404 Not Found", "text/plain", "Not Found");
     }
-    
+
     close(client);
 }
 
@@ -301,11 +291,22 @@ void start_server(int port){
     fflush(stdout);
 
     while (1){
-        int client = accept(server_fd, NULL, NULL);
-        if (client < 0){
-            perror("accept");
-            continue;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(server_fd, &rfds);
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 250000; // 250ms tick
+
+        int ready = select(server_fd + 1, &rfds, NULL, NULL, &tv);
+        if (ready > 0 && FD_ISSET(server_fd, &rfds)){
+            int client = accept(server_fd, NULL, NULL);
+            if (client >= 0){
+                handle_client(client);
+            }
         }
-        handle_client(client);
+
+        auto_step();
     }
 }
