@@ -22,20 +22,16 @@
   <main class="layout">
     <section class="boardCard">
       <canvas id="board" width="640" height="640"></canvas>
-      <div class="hint">Tip: Use MOVE 0..3 (piece index). ROLL first.</div>
+      <div class="hint">Auto-play mode. Use STEP for a single tick, or PAUSE/RESUME.</div>
     </section>
 
     <aside class="panel">
       <section class="card">
         <h2>Controls</h2>
         <div class="row">
-          <button class="btn primary" id="roll">ROLL</button>
+          <button class="btn primary" id="roll">STEP</button>
           <button class="btn" id="pause">PAUSE</button>
           <button class="btn" id="resume">RESUME</button>
-        </div>
-        <div class="row">
-          <input id="piece" type="number" min="0" max="3" value="0" />
-          <button class="btn primary" id="move">MOVE</button>
         </div>
       </section>
 
