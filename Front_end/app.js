@@ -58,54 +58,58 @@ async function fetchState(){
   }
 }
 
-// --- Coordinate system (simple but clear) ---
-// We render a "ring" path around the board as 52 evenly spaced cells.
+// --- Coordinate system (classic 15x15 Ludo grid) ---
+const GRID = 15;
+const CELL = 40; // 15 * 40 = 600
+const OFFSET = 20;
+const CENTER = { x: OFFSET + CELL * 7 + CELL / 2, y: OFFSET + CELL * 7 + CELL / 2 };
 
-const CENTER = { x: 320, y: 320 };
-const RING_R = 230;
-
-function ringXY(i){
-  const a = (Math.PI * 2) * (i / 52) - Math.PI/2;
-  return { x: CENTER.x + Math.cos(a) * RING_R, y: CENTER.y + Math.sin(a) * RING_R };
+function gridXY(r, c){
+  return { x: OFFSET + c * CELL + CELL / 2, y: OFFSET + r * CELL + CELL / 2 };
 }
 
+// 52-track coordinates (row, col) in clockwise order starting at left start.
+const TRACK = [
+  [6,0],[6,1],[6,2],[6,3],[6,4],[6,5],
+  [5,6],[4,6],[3,6],[2,6],[1,6],
+  [0,6],[0,7],[0,8],
+  [1,8],[2,8],[3,8],[4,8],[5,8],
+  [6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+  [7,14],[8,14],
+  [8,13],[8,12],[8,11],[8,10],[8,9],
+  [9,8],[10,8],[11,8],[12,8],[13,8],
+  [14,8],[14,7],[14,6],
+  [13,6],[12,6],[11,6],[10,6],[9,6],
+  [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],
+  [7,0]
+];
+
+const HOME_PATHS = [
+  // Player 0 (Yellow - left) -> towards center along row 7
+  [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+  // Player 1 (Blue - top) -> towards center along col 7
+  [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+  // Player 2 (Red - right) -> towards center along row 7
+  [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+  // Player 3 (Green - bottom) -> towards center along col 7
+  [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]]
+];
+
 function baseXY(player, pieceIndex){
-  // 4 corner bases, each with 4 slots
-  const pad = 90;
-  const corners = [
-    { x: pad, y: pad },                                 // P0
-    { x: canvas.width - pad, y: pad },                  // P1
-    { x: canvas.width - pad, y: canvas.height - pad },  // P2
-    { x: pad, y: canvas.height - pad }                  // P3
+  // 4 corner bases, each with 4 slots in a 2x2 block
+  const baseCells = [
+    [[1,1],[1,3],[3,1],[3,3]],       // P0 top-left
+    [[1,11],[1,13],[3,11],[3,13]],   // P1 top-right
+    [[11,11],[11,13],[13,11],[13,13]], // P2 bottom-right
+    [[11,1],[11,3],[13,1],[13,3]]    // P3 bottom-left
   ];
-  const c = corners[player];
-  const offsets = [
-    {x:-18,y:-18},{x:18,y:-18},{x:-18,y:18},{x:18,y:18}
-  ];
-  const o = offsets[pieceIndex % 4];
-  return { x: c.x + o.x, y: c.y + o.y };
+  const [r,c] = baseCells[player][pieceIndex % 4];
+  return gridXY(r,c);
 }
 
 function homeXY(player, step){ // step 0..5
-  // each player has a line towards center
-  const dirs = [
-    {x: 1, y: 1},   // P0 towards center
-    {x: -1, y: 1},  // P1
-    {x: -1, y: -1}, // P2
-    {x: 1, y: -1}   // P3
-  ];
-  const d = dirs[player];
-  const start = baseXY(player, 0);
-  // start near ring, go inward
-  const start2 = {
-    x: (start.x + CENTER.x) / 2,
-    y: (start.y + CENTER.y) / 2
-  };
-  const gap = 28;
-  return {
-    x: start2.x + d.x * gap * step,
-    y: start2.y + d.y * gap * step
-  };
+  const coord = HOME_PATHS[player][Math.min(5, Math.max(0, step))];
+  return gridXY(coord[0], coord[1]);
 }
 
 function getPiecePositionValue(pieceCell){
@@ -123,7 +127,10 @@ function pieceXY(state, player, k){
   let pos = getPiecePositionValue(cell);
 
   if (pos === -1) return baseXY(player, k);
-  if (typeof pos === "number" && pos >= 0 && pos <= 51) return ringXY(pos);
+  if (typeof pos === "number" && pos >= 0 && pos <= 51) {
+    const coord = TRACK[pos];
+    return gridXY(coord[0], coord[1]);
+  }
 
   // Home path support:
   // 1) If backend uses 52..57 mapping, use pos-52.
@@ -211,6 +218,60 @@ Mystery Turns Left: ${mcell === -1 ? "-" : mleft}`;
 
 function lerp(a,b,t){ return a + (b-a)*t; }
 
+function drawCellRect(r, c, color, alpha=1){
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(OFFSET + c * CELL, OFFSET + r * CELL, CELL, CELL);
+  ctx.restore();
+}
+
+function drawGrid(){
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  for(let i=0;i<=GRID;i++){
+    const p = OFFSET + i * CELL;
+    ctx.beginPath();
+    ctx.moveTo(OFFSET, p);
+    ctx.lineTo(OFFSET + GRID * CELL, p);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(p, OFFSET);
+    ctx.lineTo(p, OFFSET + GRID * CELL);
+    ctx.stroke();
+  }
+}
+
+function drawBoardLayout(){
+  // base areas (6x6 each)
+  const baseAreas = [
+    { r0:0, c0:0, color: colors[0].fill },   // Yellow
+    { r0:0, c0:9, color: colors[1].fill },   // Blue
+    { r0:9, c0:9, color: colors[2].fill },   // Red
+    { r0:9, c0:0, color: colors[3].fill }    // Green
+  ];
+  baseAreas.forEach(b => {
+    for(let r=b.r0; r<b.r0+6; r++){
+      for(let c=b.c0; c<b.c0+6; c++){
+        drawCellRect(r, c, b.color, 0.12);
+      }
+    }
+  });
+
+  // center home (3x3)
+  for(let r=6; r<=8; r++){
+    for(let c=6; c<=8; c++){
+      drawCellRect(r, c, "#ffffff", 0.08);
+    }
+  }
+
+  // home paths
+  for(let p=0; p<4; p++){
+    HOME_PATHS[p].forEach(([r,c]) => drawCellRect(r, c, colors[p].fill, 0.18));
+  }
+}
+
 function draw(now){
   if (!lastState){
     requestAnimationFrame(draw);
@@ -223,20 +284,14 @@ function draw(now){
   ctx.fillStyle = "#0f1420";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // board border
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 2;
-  roundRect(18,18,604,604,18);
-  ctx.stroke();
+  // board layout
+  drawBoardLayout();
+  drawGrid();
 
-  // center home
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
-  roundRect(260,260,120,120,14);
-  ctx.fill();
-
-  // draw ring cells
+  // draw track cells
   for(let i=0;i<52;i++){
-    const pt = ringXY(i);
+    const [r,c] = TRACK[i];
+    const pt = gridXY(r, c);
     const isSafe = SAFE.has(i);
     const isMystery = (lastState.mystery_cell === i);
 
@@ -244,34 +299,21 @@ function draw(now){
     ctx.arc(pt.x, pt.y, 12, 0, Math.PI*2);
 
     if (isMystery){
-      ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
       ctx.fill();
     } else if (isSafe){
-      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
       ctx.fill();
     } else {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
       ctx.fill();
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.stroke();
   }
 
-  // draw home paths (6 each)
-  for(let p=0;p<4;p++){
-    for(let step=0; step<6; step++){
-      const pt = homeXY(p, step);
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 10, 0, Math.PI*2);
-      ctx.fillStyle = "rgba(255,255,255,0.07)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
-      ctx.stroke();
-    }
-  }
-
-  // draw bases
+  // draw bases (piece slots)
   for(let p=0;p<4;p++){
     for(let k=0;k<4;k++){
       const pt = baseXY(p,k);
@@ -279,7 +321,7 @@ function draw(now){
       ctx.arc(pt.x, pt.y, 12, 0, Math.PI*2);
       ctx.fillStyle = "rgba(255,255,255,0.06)";
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
       ctx.stroke();
     }
   }
