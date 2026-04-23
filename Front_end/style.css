@@ -30,7 +30,8 @@ h1 { margin:0; font-size: 22px; letter-spacing: 0.5px; }
 
 .layout {
   display: grid;
-  grid-template-columns: 700px 1fr;
+  grid-template-columns: minmax(320px, 640px);
+  justify-content: center;
   gap: 16px;
   padding: 16px;
 }
@@ -41,10 +42,13 @@ h1 { margin:0; font-size: 22px; letter-spacing: 0.5px; }
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 10px 26px rgba(84, 58, 20, 0.14);
+  width: fit-content;
+  max-width: 100%;
 }
 canvas {
   display:block;
-  width: 100%;
+  width: 540px;
+  max-width: 100%;
   height: auto;
   border-radius: 12px;
   background: #d3b37a;

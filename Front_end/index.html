@@ -21,30 +21,9 @@
 
   <main class="layout">
     <section class="boardCard">
-      <canvas id="board" width="640" height="640"></canvas>
-      <div class="hint">Auto-play mode. Use STEP for a single tick, or PAUSE/RESUME.</div>
+      <canvas id="board" width="540" height="540"></canvas>
+      <div class="hint">Board view only. Use backend commands/API for control.</div>
     </section>
-
-    <aside class="panel">
-      <section class="card">
-        <h2>Controls</h2>
-        <div class="row">
-          <button class="btn primary" id="roll">STEP</button>
-          <button class="btn" id="pause">PAUSE</button>
-          <button class="btn" id="resume">RESUME</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Game State</h2>
-        <div id="state" class="mono small"></div>
-      </section>
-
-      <section class="card">
-        <h2>Recent Actions</h2>
-        <pre id="log" class="log">(no log yet)</pre>
-      </section>
-    </aside>
   </main>
 
   <script src="app.js"></script>

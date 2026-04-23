@@ -6,6 +6,11 @@ const ctx = canvas.getContext("2d");
 const elState = document.getElementById("state");
 const elLog = document.getElementById("log");
 const elSubtitle = document.getElementById("subtitle");
+const elApi = document.getElementById("api");
+const elReconnect = document.getElementById("reconnect");
+const elRoll = document.getElementById("roll");
+const elPause = document.getElementById("pause");
+const elResume = document.getElementById("resume");
 
 const colors = [
   { name:"Yellow", fill:"#ffd84d", dark:"#caa61d" },
@@ -25,17 +30,19 @@ let anim = null; // {startTime, duration, from, to, p, k}
 let renderLoopRunning = false;
 
 function setApiFromInput(){
-  API = document.getElementById("api").value.trim();
+  API = (elApi?.value || API).trim();
 }
 
-document.getElementById("reconnect").onclick = () => {ß
-  setApiFromInput();
-  fetchState();
-};
+if (elReconnect){
+  elReconnect.onclick = () => {
+    setApiFromInput();
+    fetchState();
+  };
+}
 
-document.getElementById("roll").onclick = () => sendCmd("STEP");
-document.getElementById("pause").onclick = () => sendCmd("PAUSE");
-document.getElementById("resume").onclick = () => sendCmd("RESUME");
+if (elRoll) elRoll.onclick = () => sendCmd("STEP");
+if (elPause) elPause.onclick = () => sendCmd("PAUSE");
+if (elResume) elResume.onclick = () => sendCmd("RESUME");
 
 async function sendCmd(cmd){
   try{
@@ -46,7 +53,7 @@ async function sendCmd(cmd){
     });
     await fetchState();
   }catch(e){
-    elSubtitle.textContent = "Server offline / command failed";
+    if (elSubtitle) elSubtitle.textContent = "Server offline / command failed";
   }
 }
 
@@ -54,17 +61,17 @@ async function fetchState(){
   try{
     const r = await fetch(API + "/state", { cache: "no-store" });
     const s = await r.json();
-    elSubtitle.textContent = `Connected: ${API}`;
+    if (elSubtitle) elSubtitle.textContent = `Connected: ${API}`;
     onNewState(s);
   }catch(e){
-    elSubtitle.textContent = "Not connected (start backend on localhost:8080)";
+    if (elSubtitle) elSubtitle.textContent = "Not connected (start backend on localhost:8080)";
   }
 }
 
 // --- Coordinate system (classic 15x15 Ludo grid) ---
 const GRID = 15;
-const CELL = 40; // 15 * 40 = 600
-const OFFSET = 20;
+const CELL = 34; // 15 * 34 = 510
+const OFFSET = 15;
 const CENTER = { x: OFFSET + CELL * 7 + CELL / 2, y: OFFSET + CELL * 7 + CELL / 2 };
 
 function gridXY(r, c){
@@ -197,6 +204,8 @@ function onNewState(s){
 }
 
 function updateSidePanel(s){
+  if (!elState || !elLog) return;
+
   const cp = s.current_player ?? 0;
   const dice = s.dice ?? 0;
   const round = s.round ?? 0;
