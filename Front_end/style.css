@@ -1,18 +1,18 @@
 :root {
-  --bg: #0b0d10;
-  --card: #131824;
-  --text: #e9edf4;
-  --muted: #aab2c2;
-  --line: rgba(255,255,255,0.12);
-  --btn: #1b2436;
-  --btn2: #22314d;
-  --primary: #2b6cff;
+  --bg: #efe2c6;
+  --card: #fffaf0;
+  --text: #2f2b24;
+  --muted: #6b6256;
+  --line: rgba(60, 46, 24, 0.2);
+  --btn: #f4e6c5;
+  --btn2: #ebd7ac;
+  --primary: #c9871f;
 }
 
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: "Trebuchet MS", Verdana, sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -23,8 +23,9 @@ body {
   justify-content:space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #f9efd9 0%, #f1dfbf 100%);
 }
-h1 { margin:0; font-size: 20px; }
+h1 { margin:0; font-size: 22px; letter-spacing: 0.5px; }
 .subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
 .layout {
@@ -39,13 +40,14 @@ h1 { margin:0; font-size: 20px; }
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px;
+  box-shadow: 0 10px 26px rgba(84, 58, 20, 0.14);
 }
 canvas {
   display:block;
   width: 100%;
   height: auto;
   border-radius: 12px;
-  background: #0f1420;
+  background: #d3b37a;
 }
 .hint { margin-top: 10px; color: var(--muted); font-size: 12px; }
 
@@ -55,6 +57,7 @@ canvas {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px;
+  box-shadow: 0 6px 18px rgba(84, 58, 20, 0.1);
 }
 .card h2 { margin: 0 0 10px 0; font-size: 15px; }
 .row { display:flex; gap: 10px; margin: 10px 0; align-items:center; }
@@ -66,16 +69,18 @@ canvas {
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
+  font-weight: 600;
 }
 .btn:hover { background: var(--btn2); }
 .btn.primary {
   background: var(--primary);
-  border-color: transparent;
+  border-color: #9a6612;
+  color: #fff8eb;
 }
 .btn.primary:hover { filter: brightness(1.05); }
 
 input[type="number"], .api {
-  background: #0f1420;
+  background: #fffdf5;
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -87,14 +92,24 @@ input[type="number"], .api {
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
 .log {
   margin: 0;
-  background: #0f1420;
+  background: #fffdf5;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
   min-height: 160px;
   max-height: 260px;
   overflow: auto;
-  color: #dbe5ff;
+  color: #3b2f1f;
 }
 
 .right { display:flex; gap: 10px; align-items:center; }
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .api {
+    width: 180px;
+  }
+}

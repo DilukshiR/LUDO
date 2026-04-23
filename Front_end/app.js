@@ -8,14 +8,17 @@ const elLog = document.getElementById("log");
 const elSubtitle = document.getElementById("subtitle");
 
 const colors = [
-  { name:"Yellow", fill:"#ffd84d" },
-  { name:"Blue",   fill:"#4da3ff" },
-  { name:"Red",    fill:"#ff4d4d" },
-  { name:"Green",  fill:"#44dd77" }
+  { name:"Yellow", fill:"#ffd84d", dark:"#caa61d" },
+  { name:"Blue",   fill:"#4da3ff", dark:"#2a6fbc" },
+  { name:"Red",    fill:"#ff4d4d", dark:"#ba2d2d" },
+  { name:"Green",  fill:"#44dd77", dark:"#239d4b" }
 ];
 
 // Ludo safe cells (L2 L15 L28 L41) are 0-based indices: 2, 15, 28, 41.
-const SAFE = new Set([2, 15, 28, 41]);
+const SAFE = new Set([1, 14, 27, 40]);
+// Backend start positions are approachCell + 2 => 2, 15, 28, 41.
+const START_INDEX_BY_PLAYER = [1, 14, 27, 40];
+const START_PLAYER_BY_INDEX = new Map(START_INDEX_BY_PLAYER.map((idx, p) => [idx, p]));
 
 let lastState = null;
 let anim = null; // {startTime, duration, from, to, p, k}
@@ -25,7 +28,7 @@ function setApiFromInput(){
   API = document.getElementById("api").value.trim();
 }
 
-document.getElementById("reconnect").onclick = () => {
+document.getElementById("reconnect").onclick = () => {ß
   setApiFromInput();
   fetchState();
 };
@@ -143,7 +146,8 @@ function pieceXY(state, player, k){
       state.homeStraight?.[player]?.[k] ??
       (cell && typeof cell === "object" ? cell.homeStraight : undefined);
 
-    if (typeof hs === "number") return homeXY(player, Math.min(5, Math.max(0, hs)));
+    // Backend homeStraight is 1..6, convert to 0..5 index for HOME_PATHS.
+    if (typeof hs === "number") return homeXY(player, Math.min(5, Math.max(0, hs - 1)));
   }
 
   // fallback
@@ -226,8 +230,14 @@ function drawCellRect(r, c, color, alpha=1){
   ctx.restore();
 }
 
+function drawCellBorder(r, c, color, width=1){
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.strokeRect(OFFSET + c * CELL, OFFSET + r * CELL, CELL, CELL);
+}
+
 function drawGrid(){
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.strokeStyle = "#d8d8d8";
   ctx.lineWidth = 1;
   for(let i=0;i<=GRID;i++){
     const p = OFFSET + i * CELL;
@@ -244,31 +254,80 @@ function drawGrid(){
 }
 
 function drawBoardLayout(){
-  // base areas (6x6 each)
+  const boardStart = OFFSET;
+  const boardSize = CELL * GRID;
+
+  // white board base
+  ctx.fillStyle = "#f8f8f8";
+  ctx.fillRect(boardStart, boardStart, boardSize, boardSize);
+
+  // corner home quadrants (classic bold ludo colors)
   const baseAreas = [
     { r0:0, c0:0, color: colors[0].fill },   // Yellow
     { r0:0, c0:9, color: colors[1].fill },   // Blue
     { r0:9, c0:9, color: colors[2].fill },   // Red
     { r0:9, c0:0, color: colors[3].fill }    // Green
   ];
-  baseAreas.forEach(b => {
+
+  baseAreas.forEach((b, idx) => {
     for(let r=b.r0; r<b.r0+6; r++){
       for(let c=b.c0; c<b.c0+6; c++){
-        drawCellRect(r, c, b.color, 0.12);
+        drawCellRect(r, c, b.color, 0.95);
       }
     }
+
+    // inner white house square
+    for(let r=b.r0+1; r<b.r0+5; r++){
+      for(let c=b.c0+1; c<b.c0+5; c++){
+        drawCellRect(r, c, "#ffffff", 1);
+      }
+    }
+
+    // Token nests are rendered in the main draw pass with piece slots.
   });
 
-  // center home (3x3)
-  for(let r=6; r<=8; r++){
-    for(let c=6; c<=8; c++){
-      drawCellRect(r, c, "#ffffff", 0.08);
-    }
+  // home paths to center
+  for(let p=0; p<4; p++){
+    HOME_PATHS[p].forEach(([r,c]) => drawCellRect(r, c, colors[p].fill, 0.92));
   }
 
-  // home paths
-  for(let p=0; p<4; p++){
-    HOME_PATHS[p].forEach(([r,c]) => drawCellRect(r, c, colors[p].fill, 0.18));
+  // center triangles (original ludo style)
+  const centerX = OFFSET + CELL * 7.5;
+  const centerY = OFFSET + CELL * 7.5;
+  const span = CELL * 1.5;
+
+  const tris = [
+    // left, top, right, bottom (matching player index order)
+    { color: colors[0].fill, pts: [[centerX - span, centerY - span], [centerX - span, centerY + span], [centerX, centerY]] },
+    { color: colors[1].fill, pts: [[centerX - span, centerY - span], [centerX + span, centerY - span], [centerX, centerY]] },
+    { color: colors[2].fill, pts: [[centerX + span, centerY - span], [centerX + span, centerY + span], [centerX, centerY]] },
+    { color: colors[3].fill, pts: [[centerX - span, centerY + span], [centerX + span, centerY + span], [centerX, centerY]] }
+  ];
+
+  tris.forEach(t => {
+    ctx.beginPath();
+    ctx.moveTo(t.pts[0][0], t.pts[0][1]);
+    ctx.lineTo(t.pts[1][0], t.pts[1][1]);
+    ctx.lineTo(t.pts[2][0], t.pts[2][1]);
+    ctx.closePath();
+    ctx.fillStyle = t.color;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+  });
+
+  // board outline
+  ctx.strokeStyle = "#2d2d2d";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boardStart, boardStart, boardSize, boardSize);
+
+  // emphasize lane borders
+  for(let i=0; i<GRID; i++){
+    drawCellBorder(6, i, "#b8b8b8");
+    drawCellBorder(8, i, "#b8b8b8");
+    drawCellBorder(i, 6, "#b8b8b8");
+    drawCellBorder(i, 8, "#b8b8b8");
   }
 }
 
@@ -280,37 +339,49 @@ function draw(now){
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // background
-  ctx.fillStyle = "#0f1420";
+  // table-like background
+  ctx.fillStyle = "#d3b37a";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   // board layout
   drawBoardLayout();
   drawGrid();
 
-  // draw track cells
+  // draw track cells (filled squares for classic board look)
   for(let i=0;i<52;i++){
     const [r,c] = TRACK[i];
-    const pt = gridXY(r, c);
     const isSafe = SAFE.has(i);
     const isMystery = (lastState.mystery_cell === i);
-
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 12, 0, Math.PI*2);
+    const startPlayer = START_PLAYER_BY_INDEX.get(i);
+    const isStartCell = startPlayer !== undefined;
 
     if (isMystery){
-      ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
-      ctx.fill();
+      drawCellRect(r, c, "#2b2b2b", 0.95);
+    } else if (isStartCell){
+      drawCellRect(r, c, colors[startPlayer].fill, 0.95);
     } else if (isSafe){
-      ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
-      ctx.fill();
+      drawCellRect(r, c, "#ece6a8", 1);
     } else {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      drawCellRect(r, c, "#ffffff", 1);
+    }
+
+    drawCellBorder(r, c, "#bebebe");
+
+    if (isSafe){
+      const pt = gridXY(r, c);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = isStartCell ? colors[startPlayer].dark : "#ad9d2b";
       ctx.fill();
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.stroke();
+    if (isMystery){
+      const pt = gridXY(r, c);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+    }
   }
 
   // draw bases (piece slots)
@@ -318,11 +389,20 @@ function draw(now){
     for(let k=0;k<4;k++){
       const pt = baseXY(p,k);
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 12, 0, Math.PI*2);
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      ctx.arc(pt.x, pt.y, 15, 0, Math.PI*2);
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = colors[p].fill;
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.restore();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = colors[p].dark;
       ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.fill();
     }
   }
 
@@ -348,8 +428,8 @@ function draw(now){
 
   // current player indicator
   const cp = lastState.current_player ?? 0;
-  ctx.font = "16px system-ui, Arial";
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.font = "700 16px Trebuchet MS, Verdana, sans-serif";
+  ctx.fillStyle = "#2f2f2f";
   ctx.fillText(`P${cp+1} turn`, 28, 44);
 
   // dice
@@ -361,12 +441,19 @@ function draw(now){
 
 function drawPiece(x,y,color,isCurrent){
   ctx.beginPath();
-  ctx.arc(x,y,9,0,Math.PI*2);
+  ctx.arc(x,y,11,0,Math.PI*2);
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.lineWidth = isCurrent ? 3 : 1.5;
-  ctx.strokeStyle = isCurrent ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.35)";
+  ctx.lineWidth = isCurrent ? 3 : 2;
+  ctx.strokeStyle = isCurrent ? "#111111" : "rgba(0,0,0,0.4)";
   ctx.stroke();
+
+  if (isCurrent){
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
 }
 
 function roundRect(x,y,w,h,r){
